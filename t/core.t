@@ -30,15 +30,11 @@ package Resource {
     sub release {
         my ($self) = @_;
 
-        pass "Just release the connection";
-
         $self->{pool}->release($self);
     }
 
     sub close {
         my ($self) = @_;
-
-        pass "Just close the connection";
 
         $instances--;
 
@@ -58,7 +54,9 @@ sub run () {
     }
 }
 
-subtest "Example Resource" => sub {
+subtest "Simple Resource Management" => sub {
+    plan tests => 53;
+
     my $pool;
 
     unless (defined $pool) {
@@ -66,8 +64,6 @@ subtest "Example Resource" => sub {
             limit   => 4,
             factory => sub {
                 my ($pool, $available) = @_;
-
-                pass "OK, We got here";
 
                 if (rand > 0.10) {
                     my $resource = Resource->new(pool => $pool);
@@ -82,31 +78,34 @@ subtest "Example Resource" => sub {
     }
 
     # Then this is in place of ->run_when_ready...
-    postpone {
-        $pool->lease(sub {
-                my ($resource, $message) = @_;
+    $pool->lease(sub {
+            my ($resource, $message) = @_;
 
-                if (defined $resource) {
-                    ok $Resource::instances <= 4,
-                    "Expected no more than 4 allocated instances";
+            if (defined $resource) {
+                ok $Resource::instances <= 4,
+                "Allocated, no more than 4 allocated instances";
 
-                    # Do this later...
-                    postpone {
-                        if (rand > 0.10) {
-                            $resource->release;
-                        }
-                        else {
-                            $resource->close;
-                        }
+                # Do this later...
+                postpone {
+                    if (rand >= 0.2) {
+                        $resource->release;
+                    }
+                    else {
+                        $resource->close;
                     }
                 }
-                else {
-                    ok defined $message, "The error passing is working";
-                }
-            })
-    } for 1 .. 40;
+            }
+            else {
+                ok defined $message, "The error passing is working";
+            }
+        })
+    for 1 .. 50;
 
-    run
+    run;
+
+    ok $pool->has_available, "Probabalistically some should be available";
+    ok !$pool->has_waiters, "Expected no waiters to remain";
+    ok $pool->size <= $pool->limit, "The size may not exceed the limit";
 };
 
 done_testing;

@@ -41,8 +41,6 @@ sub new {
 
 =back
 
-=cut
-
 =head1 ATTRIBUTES
 
 =over 4
@@ -86,11 +84,11 @@ sub limit {
     $self->{limit};
 }
 
-=head1 METHODS
+=item has_waiters -> Bool
 
-=over 4
+A flag indicating whether or not this pool currently has a wait queue.
 
-=item lease RESOURCE_NAME, CALLBACK
+Read-only.
 
 =cut
 
@@ -98,9 +96,35 @@ sub has_waiters {
     return scalar @{ shift->{_wait_queue} };
 }
 
+=item has_available -> Bool
+
+A flag indicating whether or not this pool has any idle resources available.
+
+Read-only.
+
+=cut
+
 sub has_available {
     return scalar @{ shift->{_available} };
 }
+
+=item size -> Int
+
+The current size of the pool.
+
+Read-only.
+
+=cut
+
+sub size {
+    return shift->{_allocated};
+}
+
+=back
+
+=head1 METHODS
+
+=cut
 
 sub _track_resource {
     my ($self, $resource) = @_;
@@ -116,6 +140,17 @@ sub _prevent_halt {
     }
 }
 
+=over 4
+
+=item lease CALLBACK(RESOURCE, MESSAGE)
+
+Request a lease, with a callback invoked when the resource becomes available.
+The first argument of the callback will be the resource, if it was able to be
+granted, the second argument of the callback will be the error message, which
+will only be defined if first argument is not.
+
+=cut
+
 sub lease {
     my ($self, $callback) = @_;
 
@@ -125,7 +160,7 @@ sub lease {
         $callback->($resource);
     }
     else {
-        my $allocated = $self->{_allocated};
+        my $allocated = $self->size;
 
         unless ($allocated == $self->limit) {
             $self->{_allocated}++;
@@ -159,6 +194,13 @@ sub lease {
     }
 }
 
+=item release RESOURCE
+
+Return a resource to the pool.  This will signal any waiters which haven't yet
+received a callback.
+
+=cut
+
 sub release {
     my ($self, $resource) = @_;
 
@@ -167,14 +209,31 @@ sub release {
 
         $callback->($resource);
     }
+    else {
+        push $self->{_available}, $resource;
+    }
 }
+
+=item invalidate RESOURCE
+
+Invalidate a resource, signaling that it is no longer valid and no longer can
+be distributed by this pool.  This will allocate another resource if there are
+any waiters.
+
+=cut
 
 sub invalidate {
     my ($self, $resource) = @_;
+
+    $self->{_allocated}--;
 
     if (delete $self->{_resources}->{$resource}) {
         $self->_prevent_halt;
     }
 }
+
+=back
+
+=cut
 
 return __PACKAGE__;
