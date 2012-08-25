@@ -72,8 +72,6 @@ subtest "Example Resource" => sub {
                 if (rand > 0.10) {
                     my $resource = Resource->new(pool => $pool);
 
-                    warn "$resource: available";
-
                     $available->($resource);
                 }
                 else {
@@ -89,8 +87,6 @@ subtest "Example Resource" => sub {
                 my ($resource, $message) = @_;
 
                 if (defined $resource) {
-                    warn "$resource: leased";
-
                     ok $Resource::instances <= 4,
                     "Expected no more than 4 allocated instances";
 

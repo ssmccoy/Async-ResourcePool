@@ -3,8 +3,8 @@
 use Module::Build;
 
 my $build = Module::Build->new(
-    module_name  => "Async::ResourcePool",
-    version      => "0.0.1",
+    module_name    => "Async::ResourcePool",
+    version_from   => "Async::ResourcePool",
 
     requires       => { },
     build_requires => {

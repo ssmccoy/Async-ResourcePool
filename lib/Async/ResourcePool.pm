@@ -1,4 +1,4 @@
-package Async::ResourcePool;
+package Async::ResourcePool v0.0.1;
 
 =head1 NAME
 
@@ -137,8 +137,6 @@ sub lease {
 
                     if (defined $resource) {
                         $self->_track_resource($resource);
-
-                        warn "$resource: tracking";
                     }
                     else {
                         # Decrement the semaphore so that we don't
@@ -163,8 +161,6 @@ sub lease {
 
 sub release {
     my ($self, $resource) = @_;
-
-    warn "$self: waiting";
 
     if ($self->has_waiters) {
         my $callback = shift $self->{_wait_queue};
