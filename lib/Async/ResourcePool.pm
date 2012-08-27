@@ -1,4 +1,4 @@
-package Async::ResourcePool v0.0.1;
+package Async::ResourcePool v0.1.0;
 
 =head1 NAME
 
@@ -132,6 +132,12 @@ sub _track_resource {
     $self->{_resources}->{$resource} = $resource;
 }
 
+sub _is_tracked {
+    my ($self, $resource) = @_;
+
+    return exists $self->{_resources}{$resource};
+}
+
 sub _prevent_halt {
     my ($self) = @_;
 
@@ -204,13 +210,17 @@ received a callback.
 sub release {
     my ($self, $resource) = @_;
 
-    if ($self->has_waiters) {
-        my $callback = shift $self->{_wait_queue};
+    # Ignore resources which are not tracked.
+    # This may mean they've been invalidated.
+    if ($self->{_resources}{$resource}) {
+        if ($self->has_waiters) {
+            my $callback = shift $self->{_wait_queue};
 
-        $callback->($resource);
-    }
-    else {
-        push $self->{_available}, $resource;
+            $callback->($resource);
+        }
+        else {
+            push $self->{_available}, $resource;
+        }
     }
 }
 
@@ -225,9 +235,16 @@ any waiters.
 sub invalidate {
     my ($self, $resource) = @_;
 
+    my $resources = $self->{_resources};
+    my $available = $self->{_available};
+
     $self->{_allocated}--;
 
-    if (delete $self->{_resources}->{$resource}) {
+    if (delete $resources->{$resource}) {
+        # Strip the resource from the available queue so we don't accidently
+        # dispatch it.
+        @$available = grep !($_ != $resource), @$available;
+
         $self->_prevent_halt;
     }
 }
