@@ -24,17 +24,25 @@ package Resource {
 
         $instances++;
 
-        return bless { %args }, $class;
+        return bless { %args, closed => 0 }, $class;
     }
 
     sub release {
         my ($self) = @_;
+
+        pass "released";
+
+        fail "We're not supposed to be alive"
+        if $self->{closed};
 
         $self->{pool}->release($self);
     }
 
     sub close {
         my ($self) = @_;
+
+        pass "closed";
+        $self->{closed} = 1;
 
         $instances--;
 
@@ -55,7 +63,7 @@ sub run () {
 }
 
 subtest "Simple Resource Management" => sub {
-    plan tests => 53;
+    plan tests => 103;
 
     my $pool;
 
@@ -97,6 +105,7 @@ subtest "Simple Resource Management" => sub {
             }
             else {
                 ok defined $message, "The error passing is working";
+                pass "Don't retry";
             }
         })
     for 1 .. 50;
