@@ -161,7 +161,7 @@ sub lease {
     my ($self, $callback) = @_;
 
     if ($self->has_available) {
-        my $resource = pop $self->{_available};
+        my $resource = shift $self->{_available};
 
         $callback->($resource);
     }
@@ -243,7 +243,7 @@ sub invalidate {
     if (delete $resources->{$resource}) {
         # Strip the resource from the available queue so we don't accidently
         # dispatch it.
-        @$available = grep !($_ != $resource), @$available;
+        @$available = grep $_ != $resource, @$available;
 
         $self->_prevent_halt;
     }
