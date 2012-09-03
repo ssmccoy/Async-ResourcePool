@@ -15,6 +15,7 @@ allows resources to be categorized (by label) and limited as such.
 
 use strict;
 use warnings FATAL => "all";
+use Carp qw( croak );
 
 =head1 CONSTRUCTOR
 
@@ -33,7 +34,7 @@ sub new {
         _resources  => {},
         _allocated  => 0,
         _wait_queue => [],
-        _available  => [],
+        _available_queue  => [],
     }, $class;
 
     return $self;
@@ -96,7 +97,7 @@ sub has_waiters {
     return scalar @{ shift->{_wait_queue} };
 }
 
-=item has_available -> Bool
+=item has_available_queue -> Bool
 
 A flag indicating whether or not this pool has any idle resources available.
 
@@ -105,7 +106,7 @@ Read-only.
 =cut
 
 sub has_available {
-    return scalar @{ shift->{_available} };
+    return scalar @{ shift->{_available_queue} };
 }
 
 =item size -> Int
@@ -161,7 +162,9 @@ sub lease {
     my ($self, $callback) = @_;
 
     if ($self->has_available) {
-        my $resource = shift $self->{_available};
+        my $resource = shift $self->{_available_queue};
+
+        delete $self->{_available}{$resource};
 
         $callback->($resource);
     }
@@ -213,14 +216,24 @@ sub release {
     # Ignore resources which are not tracked.
     # This may mean they've been invalidated.
     if ($self->{_resources}{$resource}) {
-        if ($self->has_waiters) {
-            my $callback = shift $self->{_wait_queue};
+        unless ($self->{_available}{$resource}) {
+            if ($self->has_waiters) {
+                my $callback = shift $self->{_wait_queue};
 
-            $callback->($resource);
+                $callback->($resource);
+            }
+            else {
+                $self->{_available}{$resource} = $resource;
+
+                push $self->{_available_queue}, $resource;
+            }
         }
         else {
-            push $self->{_available}, $resource;
+            croak "Attempted to release resource twice: $resource";
         }
+    }
+    else {
+        croak "Attempted to release untracked resource, $resource";
     }
 }
 
@@ -236,14 +249,18 @@ sub invalidate {
     my ($self, $resource) = @_;
 
     my $resources = $self->{_resources};
-    my $available = $self->{_available};
+    my $available = $self->{_available_queue};
 
     $self->{_allocated}--;
 
-    if (delete $resources->{$resource}) {
+    my $resource_name = "$resource";
+
+    if (delete $resources->{$resource_name}) {
         # Strip the resource from the available queue so we don't accidently
         # dispatch it.
         @$available = grep $_ != $resource, @$available;
+
+        delete $resources->{_available}{$resource_name};
 
         $self->_prevent_halt;
     }
