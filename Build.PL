@@ -8,7 +8,8 @@ my $build = Module::Build->new(
 
     requires       => { },
     build_requires => {
-        "Test::More" => 0,
+        "common::sense" => 0,
+        "Test::More"    => 0,
     },
 );
 
