@@ -1,4 +1,4 @@
-package Async::ResourcePool v0.1.2;
+package Async::ResourcePool v0.1.3;
 
 =head1 NAME
 
